@@ -48,7 +48,7 @@ async function scrapeLetterboxd() {
             const posterEl = film.querySelector('img');
             const ratingEl = film.querySelector('.rating');
 
-            const poster = posterEl?.getAttribute('data-src') || posterEl?.getAttribute('src') || '';
+            const poster = posterEl?.getAttribute('data-src') || posterEl?.getAttribute('src') || 'https://via.placeholder.com/300x450?text=No+Image';
             
             let ratingStars = 'No rating';
             if (ratingEl) {
@@ -87,8 +87,15 @@ builder.defineCatalogHandler(async () => {
         return { metas: movies };
     } catch (err) {
         console.error('Error scraping Letterboxd:', err);
-        // fallback: return cached movies if scraping fails
-        return { metas: cachedMovies };
+        // fallback: return cached movies or a placeholder
+        return {
+            metas: cachedMovies.length ? cachedMovies : [{
+                id: 'letterboxd:none',
+                title: 'No Movies Found',
+                poster: 'https://via.placeholder.com/300x450?text=No+Image',
+                description: 'Scraping failed'
+            }]
+        };
     }
 });
 
