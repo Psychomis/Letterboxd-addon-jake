@@ -1,0 +1,14 @@
+{
+  "name": "letterboxd-stremio-addon",
+  "version": "1.0.0",
+  "description": "A Stremio addon showing Jake84's Letterboxd diary with ratings",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "stremio-addon-sdk": "^1.6.6",
+    "node-fetch": "^2.6.9",
+    "cheerio": "^1.0.0-rc.12"
+  }
+}
