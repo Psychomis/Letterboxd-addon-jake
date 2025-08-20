@@ -26,7 +26,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest)
 
-// Scrape movies from Letterboxd
+// Scrape Letterboxd movies
 async function scrapeLetterboxd() {
     try {
         const res = await fetch(BASE_URL)
@@ -37,14 +37,31 @@ async function scrapeLetterboxd() {
         $(".film-detail").each((i, el) => {
             const title = $(el).find(".film-title").text().trim()
             const rating = $(el).find(".rating").attr("data-rating") || null
-            const id = `letterboxd:${title.toLowerCase().replace(/ /g, "-")}`
-            if (title) movies.push({ id, title, rating })
+            const poster = $(el).find(".poster img").attr("data-src") || $(el).find(".poster img").attr("src") || "https://via.placeholder.com/200x300?text=No+Image"
+            const idSafe = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+            const id = `letterboxd:${idSafe}`
+            if (title) movies.push({ id, title, rating, poster })
         })
+
+        // Fallback if no movies found
+        if (movies.length === 0) {
+            movies.push({
+                id: "letterboxd:placeholder",
+                title: "No movies found",
+                rating: null,
+                poster: "https://via.placeholder.com/200x300?text=No+Image"
+            })
+        }
 
         return movies
     } catch (err) {
         console.error("Error scraping Letterboxd:", err)
-        return []
+        return [{
+            id: "letterboxd:placeholder",
+            title: "Error fetching list",
+            rating: null,
+            poster: "https://via.placeholder.com/200x300?text=No+Image"
+        }]
     }
 }
 
@@ -57,7 +74,8 @@ builder.defineCatalogHandler(async ({ type }) => {
             id: m.id,
             type: "movie",
             name: m.title,
-            description: m.rating ? `Rating: ${m.rating}/5` : "No rating"
+            description: m.rating ? `Rating: ${m.rating}/5` : "No rating",
+            poster: m.poster
         }))
     }
 })
@@ -71,14 +89,13 @@ builder.defineMetaHandler(async ({ type, id }) => {
         id: movie.id,
         type: "movie",
         name: movie.title,
-        description: movie.rating ? `Rating: ${movie.rating}/5` : "No rating"
+        description: movie.rating ? `Rating: ${movie.rating}/5` : "No rating",
+        poster: movie.poster
     }
 })
 
-// Get the AddonInterface object
+// Serve the addon on Render
 const addonInterface = builder.getInterface()
-
-// Serve the addon on Render's port
 const PORT = parseInt(process.env.PORT || 3000)
 serveHTTP(addonInterface, { port: PORT })
 console.log(`Addon listening on port ${PORT}`)
