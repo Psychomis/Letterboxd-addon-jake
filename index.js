@@ -6,6 +6,8 @@ console.log("Addon starting...")
 
 const LETTERBOXD_USER = "jake84"
 const RSS_URL = `https://letterboxd.com/${LETTERBOXD_USER}/rss/`
+const TMDB_KEY = process.env.TMDB_API_KEY
+const TMDB_BASE = "https://api.themoviedb.org/3"
 
 const manifest = {
     id: "org.jake84.letterboxd",
@@ -26,37 +28,50 @@ const manifest = {
 
 const builder = new addonBuilder(manifest)
 
-// Fetch and parse RSS feed
+// Fetch RSS feed and parse
 async function fetchRSS() {
     try {
         const res = await fetch(RSS_URL)
         const xml = await res.text()
         const parsed = await xml2js.parseStringPromise(xml)
-        const items = parsed.rss.channel[0].item || []
+        let items = parsed.rss.channel[0].item || []
 
-        if (!items.length) {
-            // fallback meta if no items found
-            return [{
-                id: "letterboxd:placeholder",
-                title: "No movies found",
-                description: "",
-                poster: "https://via.placeholder.com/200x300?text=No+Image"
-            }]
-        }
+        // sort by pubDate descending (newest first)
+        items.sort((a, b) => new Date(b.pubDate[0]) - new Date(a.pubDate[0]))
 
-        return items.map(item => {
+        // map to movie objects
+        const movies = await Promise.all(items.map(async item => {
             const titleRaw = item.title[0] // e.g. "The Matrix (1999)"
-            const title = titleRaw.replace(/\(\d{4}\)$/, "").trim() // remove year
+            const title = titleRaw.replace(/\(\d{4}\)$/, "").trim()
             const yearMatch = titleRaw.match(/\((\d{4})\)$/)
             const year = yearMatch ? parseInt(yearMatch[1]) : null
             const idSafe = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+
+            // fetch poster from TMDb
+            let poster = "https://via.placeholder.com/200x300?text=No+Image"
+            if (TMDB_KEY) {
+                try {
+                    const query = encodeURIComponent(title)
+                    const searchUrl = `${TMDB_BASE}/search/movie?api_key=${TMDB_KEY}&query=${query}&year=${year || ""}`
+                    const searchRes = await fetch(searchUrl)
+                    const searchData = await searchRes.json()
+                    if (searchData.results && searchData.results[0] && searchData.results[0].poster_path) {
+                        poster = `https://image.tmdb.org/t/p/w500${searchData.results[0].poster_path}`
+                    }
+                } catch (err) {
+                    console.error("TMDb fetch error for", title, err)
+                }
+            }
+
             return {
                 id: `letterboxd:${idSafe}`,
                 title: title || "Unknown Title",
                 description: year ? `Year: ${year}` : "",
-                poster: "https://via.placeholder.com/200x300?text=No+Image"
+                poster: poster
             }
-        })
+        }))
+
+        return movies
     } catch (err) {
         console.error("Error fetching RSS:", err)
         return [{
@@ -95,7 +110,7 @@ builder.defineMetaHandler(async ({ type, id }) => {
     }
 })
 
-// Serve the addon on Render
+// Serve on Render
 const addonInterface = builder.getInterface()
 const PORT = parseInt(process.env.PORT || 3000)
 serveHTTP(addonInterface, { port: PORT })
