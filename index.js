@@ -6,7 +6,7 @@ const PORT = process.env.PORT || 3000;
 const LETTERBOXD_USER = 'jake84';
 const BASE_URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/by/rated-date/`;
 
-// Cache setup
+// Cache
 let cachedMovies = [];
 let lastScrape = 0;
 const CACHE_TTL = 10 * 60 * 1000; // 10 min
@@ -16,7 +16,7 @@ const manifest = {
     id: 'org.jake84.letterboxd',
     version: '1.0.0',
     name: `Letterboxd - ${LETTERBOXD_USER}`,
-    description: `All movies watched by ${LETTERBOXD_USER} on Letterboxd with ratings`,
+    description: `Movies watched by ${LETTERBOXD_USER} on Letterboxd with ratings`,
     resources: ['catalog', 'meta'],
     types: ['movie'],
     idPrefixes: ['letterboxd:'],
@@ -31,7 +31,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Helper: scrape single page
+// Helper to scrape a single page
 async function scrapePage(url) {
     const res = await axios.get(url);
     const $ = cheerio.load(res.data);
@@ -39,9 +39,10 @@ async function scrapePage(url) {
 
     $('.film-detail').each((i, el) => {
         const posterEl = $(el).find('img');
-        const title = posterEl.attr('alt') || 'Unknown';
+        const title = posterEl.attr('alt')?.trim() || 'No Title';
         const poster = posterEl.attr('data-src') || posterEl.attr('src') || 'https://via.placeholder.com/300x450?text=No+Image';
 
+        // Only Jake’s rating
         let ratingStars = 'No rating';
         const ratingEl = $(el).find('.rating');
         if (ratingEl.length) {
@@ -53,23 +54,25 @@ async function scrapePage(url) {
             }
         }
 
-        const id = 'letterboxd:' + title.replace(/\s+/g, '-').toLowerCase() + '-' + i;
+        // Valid ID
+        const id = 'letterboxd:' + encodeURIComponent(title) + '-' + i;
+
         movies.push({ id, title, poster, description: ratingStars });
     });
 
-    // Find next page link
+    // Pagination
     const nextPageEl = $('.paginate-next a');
     const nextPage = nextPageEl.length ? nextPageEl.attr('href') : null;
 
     return { movies, nextPage };
 }
 
-// Scrape all pages
-async function scrapeAllMovies() {
+// Scrape all pages (or limit for speed)
+async function scrapeAllMovies(limit = 50) {
     let url = BASE_URL;
     let allMovies = [];
 
-    while (url) {
+    while (url && allMovies.length < limit) {
         try {
             const { movies, nextPage } = await scrapePage(url);
             allMovies = allMovies.concat(movies);
@@ -80,7 +83,8 @@ async function scrapeAllMovies() {
         }
     }
 
-    return allMovies;
+    // Limit to first N movies to avoid Stremio timeout
+    return allMovies.slice(0, limit);
 }
 
 // Catalog handler
@@ -98,7 +102,7 @@ builder.defineCatalogHandler(async () => {
     } catch (err) {
         console.error('Error scraping Letterboxd:', err);
         return {
-            metas: cachedMovies.length ? cachedMovies : [{
+            metas: [{
                 id: 'letterboxd:none',
                 title: 'No Movies Found',
                 poster: 'https://via.placeholder.com/300x450?text=No+Image',
@@ -110,7 +114,14 @@ builder.defineCatalogHandler(async () => {
 
 // Minimal meta handler
 builder.defineMetaHandler(async ({ id }) => {
-    return { meta: { id, name: id.replace('letterboxd:', '').replace(/-/g, ' '), poster: '', description: '' } };
+    return {
+        meta: {
+            id,
+            name: id.replace('letterboxd:', '').replace(/-/g, ' '),
+            poster: 'https://via.placeholder.com/300x450?text=No+Image',
+            description: ''
+        }
+    };
 });
 
 // Start server
