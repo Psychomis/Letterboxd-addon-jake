@@ -31,52 +31,57 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Catalog handler with caching
+// Safe Puppeteer scraping with caching
 builder.defineCatalogHandler(async () => {
-    const now = Date.now();
+    try {
+        const now = Date.now();
 
-    // Return cached data if valid
-    if (cachedMovies.length > 0 && now - lastScrape < CACHE_TTL) {
-        return { metas: cachedMovies };
-    }
+        if (cachedMovies.length > 0 && now - lastScrape < CACHE_TTL) {
+            return { metas: cachedMovies };
+        }
 
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        executablePath: CHROME_PATH
-    });
-
-    const page = await browser.newPage();
-    await page.goto(BASE_URL, { waitUntil: 'networkidle2' });
-
-    const movies = await page.evaluate(() => {
-        return Array.from(document.querySelectorAll('.film-detail')).map(film => {
-            const titleEl = film.querySelector('a[href*="/film/"]');
-            const posterEl = film.querySelector('img');
-            const ratingEl = film.querySelector('.rating'); // Jake's rating
-
-            return {
-                id: 'letterboxd:' + titleEl?.href.split('/film/')[1]?.replace(/\//g, ''),
-                title: titleEl?.textContent.trim() || 'Unknown',
-                poster: posterEl?.getAttribute('data-src') || posterEl?.src || '',
-                description: ratingEl?.textContent.trim() || 'No rating'
-            };
+        const browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            executablePath: CHROME_PATH
         });
-    });
 
-    await browser.close();
+        const page = await browser.newPage();
+        await page.goto(BASE_URL, { waitUntil: 'networkidle2' });
 
-    cachedMovies = movies;
-    lastScrape = now;
+        const movies = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('.film-detail')).map(film => {
+                const titleEl = film.querySelector('a[href*="/film/"]');
+                const posterEl = film.querySelector('img');
+                const ratingEl = film.querySelector('.rating');
 
-    return { metas: movies };
+                return {
+                    id: 'letterboxd:' + titleEl?.href.split('/film/')[1]?.replace(/\//g, ''),
+                    title: titleEl?.textContent.trim() || 'Unknown',
+                    poster: posterEl?.getAttribute('data-src') || posterEl?.src || '',
+                    description: ratingEl?.textContent.trim() || 'No rating'
+                };
+            });
+        });
+
+        await browser.close();
+
+        cachedMovies = movies;
+        lastScrape = now;
+
+        return { metas: movies };
+    } catch (err) {
+        console.error('Error scraping Letterboxd:', err);
+        // Fallback: return empty catalog instead of crashing
+        return { metas: [] };
+    }
 });
 
-// Meta handler - minimal
-builder.defineMetaHandler(async ({ type, id }) => {
-    return { meta: { id, name: id.replace('letterboxd:', '').replace(/-/g,' '), description: '', poster: '' } };
+// Minimal meta handler
+builder.defineMetaHandler(async ({ id }) => {
+    return { meta: { id, name: id.replace('letterboxd:', '').replace(/-/g, ' '), poster: '', description: '' } };
 });
 
-// Serve the addon
+// Serve addon
 serveHTTP(builder.getInterface(), { port: PORT });
 console.log(`Stremio addon listening on port ${PORT}`);

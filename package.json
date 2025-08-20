@@ -1,15 +1,18 @@
 {
   "name": "letterboxd-addon-jake",
   "version": "1.0.0",
-  "description": "Letterboxd RSS addon for Stremio - Scrapes movies by watched/rated date with posters",
+  "description": "Stremio addon showing movies watched by Jake84 on Letterboxd with ratings",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "author": "Kristoffer Nielsen",
-  "license": "MIT",
   "dependencies": {
-    "puppeteer-core": "^21.11.0",
+    "puppeteer-core": "^24.0.0",
     "stremio-addon-sdk": "^1.0.0"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Kristoffer Nielsen",
+  "license": "MIT"
 }
