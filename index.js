@@ -1,6 +1,7 @@
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk")
 const fetch = require("node-fetch") // v2
 const cheerio = require("cheerio")
+const http = require("http") // Node's built-in server
 
 console.log("Addon starting...")
 
@@ -75,10 +76,19 @@ builder.defineMetaHandler(async ({ type, id }) => {
     }
 })
 
-// Get the AddonInterface object
+// Stremio interface
 const addonInterface = builder.getInterface()
+const PORT = process.env.PORT || 3000
+serveHTTP(addonInterface, { port: PORT })
+console.log(`Stremio addon listening on port ${PORT}`)
 
-// Serve via SDK
-const port = process.env.PORT || 3000
-serveHTTP(addonInterface, { port })
-console.log(`Addon listening on port ${port}`)
+// --- Quick test server for /test ---
+http.createServer(async (req, res) => {
+    if (req.url === "/test") {
+        const movies = await scrapeLetterboxd()
+        res.writeHead(200, { "Content-Type": "application/json" })
+        res.end(JSON.stringify(movies, null, 2))
+    }
+}).listen(PORT + 1, () => {
+    console.log(`Test route listening on port ${PORT + 1}, visit http://localhost:${PORT + 1}/test`)
+})
