@@ -140,3 +140,16 @@ builder.defineMetaHandler(async ({ type, id }) => {
 })
 
 module.exports = builder.getInterface()
+
+const express = require("express")
+const app = express()
+const addonInterface = builder.getInterface()
+
+app.use("/", addonInterface)
+
+// Listen on the port Render provides
+const port = process.env.PORT || 3000
+app.listen(port, () => {
+  console.log(`Addon listening on port ${port}`)
+})
+
