@@ -8,7 +8,7 @@ console.log("Addon starting...") // log on startup
 const LETTERBOXD_USER = "jake84"
 const BASE_URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/`
 
-// Corrected manifest with catalogs array
+// Manifest with catalogs array
 const manifest = {
     id: "org.jake84.letterboxd",
     version: "1.0.0",
@@ -78,7 +78,11 @@ builder.defineMetaHandler(async ({ type, id }) => {
 
 // Express server for Render
 const app = express()
-app.use("/", builder.getInterface())
+
+const addonInterface = builder.getInterface()
+app.use("/", (req, res) => {
+    addonInterface(req, res)
+})
 
 const port = process.env.PORT || 3000
 app.listen(port, () => {
