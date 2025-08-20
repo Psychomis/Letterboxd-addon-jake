@@ -73,3 +73,32 @@ async function scrapeLetterboxd() {
 builder.defineCatalogHandler(async () => {
     const now = Date.now();
     if (cachedMovies.length && now - lastScrape < CACHE_TTL) {
+        return { metas: cachedMovies };
+    }
+
+    try {
+        const movies = await scrapeLetterboxd();
+        cachedMovies = movies;
+        lastScrape = now;
+        return { metas: movies };
+    } catch (err) {
+        console.error('Error scraping Letterboxd:', err);
+        return {
+            metas: cachedMovies.length ? cachedMovies : [{
+                id: 'letterboxd:none',
+                title: 'No Movies Found',
+                poster: 'https://via.placeholder.com/300x450?text=No+Image',
+                description: 'Scraping failed'
+            }]
+        };
+    }
+});
+
+// === META HANDLER (minimal) ===
+builder.defineMetaHandler(async ({ id }) => {
+    return { meta: { id, name: id.replace('letterboxd:', '').replace(/-/g, ' '), poster: '', description: '' } };
+});
+
+// === START SERVER ===
+serveHTTP(builder.getInterface(), { port: PORT });
+console.log(`Stremio addon listening on port ${PORT}`);
