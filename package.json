@@ -7,7 +7,7 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "stremio-addon-sdk": "^0.5.8",
+    "stremio-addon-sdk": "^1.6.10",
     "axios": "^1.6.6",
     "cheerio": "^1.0.0-rc.12"
   }
