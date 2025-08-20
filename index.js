@@ -6,12 +6,12 @@ const LETTERBOXD_USER = 'jake84';
 const BASE_URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/by/rated-date/`;
 const CHROME_PATH = process.env.CHROME_PATH || '/usr/bin/chromium-browser';
 
-// Cache setup
+// === CACHE SETUP ===
 let cachedMovies = [];
 let lastScrape = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
-// Stremio manifest
+// === STREMIO MANIFEST ===
 const manifest = {
     id: 'org.jake84.letterboxd',
     version: '1.0.0',
@@ -31,70 +31,72 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Catalog handler with Puppeteer and star ratings
-builder.defineCatalogHandler(async () => {
-    try {
-        const now = Date.now();
+// === HELPER FUNCTION: scrape movies ===
+async function scrapeLetterboxd() {
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        executablePath: CHROME_PATH
+    });
 
-        if (cachedMovies.length > 0 && now - lastScrape < CACHE_TTL) {
-            return { metas: cachedMovies };
-        }
+    const page = await browser.newPage();
+    await page.goto(BASE_URL, { waitUntil: 'networkidle2' });
 
-        const browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
-            executablePath: CHROME_PATH
-        });
+    const movies = await page.evaluate(() => {
+        return Array.from(document.querySelectorAll('.film-detail')).map(film => {
+            const titleEl = film.querySelector('a[href*="/film/"]');
+            const posterEl = film.querySelector('img');
+            const ratingEl = film.querySelector('.rating');
 
-        const page = await browser.newPage();
-        await page.goto(BASE_URL, { waitUntil: 'networkidle2' });
-
-        const movies = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('.film-detail')).map(film => {
-                const titleEl = film.querySelector('a[href*="/film/"]');
-                const posterEl = film.querySelector('img');
-
-                // Poster fallback
-                const poster = posterEl?.getAttribute('data-src') || posterEl?.getAttribute('src') || '';
-
-                // Jake's rating as stars
-                const ratingEl = film.querySelector('.rating');
-                let ratingStars = 'No rating';
-                if (ratingEl) {
-                    const ratingValue = parseFloat(ratingEl.textContent.trim());
-                    if (!isNaN(ratingValue)) {
-                        const fullStars = '★'.repeat(Math.round(ratingValue));
-                        const emptyStars = '☆'.repeat(5 - Math.round(ratingValue));
-                        ratingStars = fullStars + emptyStars;
-                    }
+            const poster = posterEl?.getAttribute('data-src') || posterEl?.getAttribute('src') || '';
+            
+            let ratingStars = 'No rating';
+            if (ratingEl) {
+                const ratingValue = parseFloat(ratingEl.textContent.trim());
+                if (!isNaN(ratingValue)) {
+                    const fullStars = '★'.repeat(Math.round(ratingValue));
+                    const emptyStars = '☆'.repeat(5 - Math.round(ratingValue));
+                    ratingStars = fullStars + emptyStars;
                 }
+            }
 
-                return {
-                    id: 'letterboxd:' + (titleEl?.href.split('/film/')[1]?.replace(/\//g, '') || Date.now()),
-                    title: titleEl?.textContent.trim() || 'Unknown',
-                    poster: poster,
-                    description: ratingStars
-                };
-            });
+            return {
+                id: 'letterboxd:' + (titleEl?.href.split('/film/')[1]?.replace(/\//g, '') || Date.now()),
+                title: titleEl?.textContent.trim() || 'Unknown',
+                poster: poster,
+                description: ratingStars
+            };
         });
+    });
 
-        await browser.close();
+    await browser.close();
+    return movies;
+}
 
+// === CATALOG HANDLER WITH CACHE ===
+builder.defineCatalogHandler(async () => {
+    const now = Date.now();
+    if (cachedMovies.length > 0 && now - lastScrape < CACHE_TTL) {
+        return { metas: cachedMovies };
+    }
+
+    try {
+        const movies = await scrapeLetterboxd();
         cachedMovies = movies;
         lastScrape = now;
-
         return { metas: movies };
     } catch (err) {
         console.error('Error scraping Letterboxd:', err);
-        return { metas: [] }; // fallback to avoid HTTP 500
+        // fallback: return cached movies if scraping fails
+        return { metas: cachedMovies };
     }
 });
 
-// Minimal meta handler
+// === META HANDLER (minimal) ===
 builder.defineMetaHandler(async ({ id }) => {
     return { meta: { id, name: id.replace('letterboxd:', '').replace(/-/g, ' '), poster: '', description: '' } };
 });
 
-// Serve addon
+// === START SERVER ===
 serveHTTP(builder.getInterface(), { port: PORT });
 console.log(`Stremio addon listening on port ${PORT}`);
