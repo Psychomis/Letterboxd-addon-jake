@@ -6,12 +6,12 @@ const PORT = process.env.PORT || 3000;
 const LETTERBOXD_USER = 'jake84';
 const BASE_URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/by/rated-date/`;
 
-// === CACHE SETUP ===
+// Cache setup
 let cachedMovies = [];
 let lastScrape = 0;
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const CACHE_TTL = 10 * 60 * 1000; // 10 min
 
-// === STREMIO MANIFEST ===
+// Manifest
 const manifest = {
     id: 'org.jake84.letterboxd',
     version: '1.0.0',
@@ -31,20 +31,20 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// === HELPER FUNCTION: scrape movies ===
+// Scraper
 async function scrapeLetterboxd() {
     const res = await axios.get(BASE_URL);
     const $ = cheerio.load(res.data);
 
     const movies = [];
 
-    // Limit to first 20 movies
-    $('.film-poster').slice(0, 20).each((i, el) => {
+    // Select movies
+    $('.film-detail').slice(0, 20).each((i, el) => {
         const posterEl = $(el).find('img');
         const title = posterEl.attr('alt') || 'Unknown';
-        const poster = posterEl.attr('src') || 'https://via.placeholder.com/300x450?text=No+Image';
+        const poster = posterEl.attr('data-src') || posterEl.attr('src') || 'https://via.placeholder.com/300x450?text=No+Image';
 
-        // Jake’s rating (1–5 stars) shown as ★☆☆☆☆
+        // Jake's rating (1-5 stars)
         let ratingStars = 'No rating';
         const ratingEl = $(el).find('.rating');
         if (ratingEl.length) {
@@ -69,7 +69,7 @@ async function scrapeLetterboxd() {
     return movies;
 }
 
-// === CATALOG HANDLER WITH CACHE ===
+// Catalog handler
 builder.defineCatalogHandler(async () => {
     const now = Date.now();
     if (cachedMovies.length && now - lastScrape < CACHE_TTL) {
@@ -94,11 +94,11 @@ builder.defineCatalogHandler(async () => {
     }
 });
 
-// === META HANDLER (minimal) ===
+// Minimal meta handler
 builder.defineMetaHandler(async ({ id }) => {
     return { meta: { id, name: id.replace('letterboxd:', '').replace(/-/g, ' '), poster: '', description: '' } };
 });
 
-// === START SERVER ===
+// Start server
 serveHTTP(builder.getInterface(), { port: PORT });
 console.log(`Stremio addon listening on port ${PORT}`);
