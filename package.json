@@ -1,16 +1,15 @@
 {
-  "name": "letterboxd-stremio-addon",
+  "name": "letterboxd-addon-jake",
   "version": "1.0.0",
-  "description": "A Stremio addon showing Jake84's Letterboxd diary with ratings",
+  "description": "Letterboxd RSS addon for Stremio - Scrapes movies by watched/rated date with posters",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "author": "Kristoffer Nielsen",
+  "license": "MIT",
   "dependencies": {
-    "cheerio": "^1.1.2",
-    "express": "^5.1.0",
-    "node-fetch": "^2.7.0",
-    "stremio-addon-sdk": "^1.6.10",
-    "xml2js": "^0.6.2"
+    "stremio-addon-sdk": "^1.0.0",
+    "puppeteer": "^21.3.8"
   }
 }
