@@ -1,5 +1,5 @@
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk")
-const fetch = require("node-fetch") // must be v2
+const fetch = require("node-fetch") // v2
 const cheerio = require("cheerio")
 
 console.log("Addon starting...")
@@ -7,7 +7,6 @@ console.log("Addon starting...")
 const LETTERBOXD_USER = "jake84"
 const BASE_URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/`
 
-// Manifest with catalogs array
 const manifest = {
     id: "org.jake84.letterboxd",
     version: "1.0.0",
@@ -27,7 +26,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest)
 
-// Safe scraping function
+// Scraping function
 async function scrapeLetterboxd() {
     try {
         const res = await fetch(BASE_URL)
@@ -76,10 +75,10 @@ builder.defineMetaHandler(async ({ type, id }) => {
     }
 })
 
-// Serve the addon via SDK
-const port = process.env.PORT || 3000
-serveHTTP(builder, { port })
-console.log(`Addon listening on port ${port}`)
+// Get the AddonInterface object
+const addonInterface = builder.getInterface()
 
-process.on("uncaughtException", err => console.error("Uncaught exception:", err))
-process.on("unhandledRejection", err => console.error("Unhandled rejection:", err))
+// Serve via SDK
+const port = process.env.PORT || 3000
+serveHTTP(addonInterface, { port })
+console.log(`Addon listening on port ${port}`)
