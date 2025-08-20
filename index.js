@@ -8,6 +8,7 @@ console.log("Addon starting...") // log on startup
 const LETTERBOXD_USER = "jake84"
 const BASE_URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/`
 
+// Corrected manifest with catalogs array
 const manifest = {
     id: "org.jake84.letterboxd",
     version: "1.0.0",
@@ -16,6 +17,13 @@ const manifest = {
     resources: ["catalog", "meta"],
     types: ["movie"],
     idPrefixes: ["letterboxd:"],
+    catalogs: [
+        {
+            type: "movie",
+            id: "letterboxd-films",
+            name: `Films of ${LETTERBOXD_USER}`
+        }
+    ]
 }
 
 const builder = new addonBuilder(manifest)
