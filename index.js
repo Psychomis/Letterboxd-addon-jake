@@ -79,9 +79,20 @@ builder.defineMetaHandler(async ({ type, id }) => {
 // Express server for Render
 const app = express()
 
+// Route for Stremio to fetch manifest
+app.get("/manifest.json", (req, res) => {
+    res.json(manifest)
+})
+
+// Wrap Stremio interface safely
 const addonInterface = builder.getInterface()
 app.use("/", (req, res) => {
-    addonInterface(req, res)
+    try {
+        addonInterface(req, res)
+    } catch(err) {
+        console.error("Error in addon interface:", err)
+        res.status(500).send("Internal server error")
+    }
 })
 
 const port = process.env.PORT || 3000
