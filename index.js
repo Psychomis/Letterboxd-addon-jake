@@ -16,7 +16,7 @@ const manifest = {
     id: 'org.jake84.letterboxd',
     version: '1.0.0',
     name: `Letterboxd - ${LETTERBOXD_USER}`,
-    description: `Movies watched by ${LETTERBOXD_USER} on Letterboxd with ratings`,
+    description: `All movies watched by ${LETTERBOXD_USER} on Letterboxd with ratings`,
     resources: ['catalog', 'meta'],
     types: ['movie'],
     idPrefixes: ['letterboxd:'],
@@ -31,20 +31,17 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Scraper
-async function scrapeLetterboxd() {
-    const res = await axios.get(BASE_URL);
+// Helper: scrape single page
+async function scrapePage(url) {
+    const res = await axios.get(url);
     const $ = cheerio.load(res.data);
-
     const movies = [];
 
-    // Select movies
-    $('.film-detail').slice(0, 20).each((i, el) => {
+    $('.film-detail').each((i, el) => {
         const posterEl = $(el).find('img');
         const title = posterEl.attr('alt') || 'Unknown';
         const poster = posterEl.attr('data-src') || posterEl.attr('src') || 'https://via.placeholder.com/300x450?text=No+Image';
 
-        // Jake's rating (1-5 stars)
         let ratingStars = 'No rating';
         const ratingEl = $(el).find('.rating');
         if (ratingEl.length) {
@@ -57,16 +54,33 @@ async function scrapeLetterboxd() {
         }
 
         const id = 'letterboxd:' + title.replace(/\s+/g, '-').toLowerCase() + '-' + i;
-
-        movies.push({
-            id,
-            title,
-            poster,
-            description: ratingStars
-        });
+        movies.push({ id, title, poster, description: ratingStars });
     });
 
-    return movies;
+    // Find next page link
+    const nextPageEl = $('.paginate-next a');
+    const nextPage = nextPageEl.length ? nextPageEl.attr('href') : null;
+
+    return { movies, nextPage };
+}
+
+// Scrape all pages
+async function scrapeAllMovies() {
+    let url = BASE_URL;
+    let allMovies = [];
+
+    while (url) {
+        try {
+            const { movies, nextPage } = await scrapePage(url);
+            allMovies = allMovies.concat(movies);
+            url = nextPage ? `https://letterboxd.com${nextPage}` : null;
+        } catch (err) {
+            console.error('Error scraping page:', url, err);
+            break;
+        }
+    }
+
+    return allMovies;
 }
 
 // Catalog handler
@@ -77,7 +91,7 @@ builder.defineCatalogHandler(async () => {
     }
 
     try {
-        const movies = await scrapeLetterboxd();
+        const movies = await scrapeAllMovies();
         cachedMovies = movies;
         lastScrape = now;
         return { metas: movies };
