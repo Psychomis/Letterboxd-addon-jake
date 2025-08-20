@@ -16,7 +16,7 @@ const manifest = {
     id: 'org.jake84.letterboxd',
     version: '1.0.0',
     name: `Letterboxd - ${LETTERBOXD_USER}`,
-    description: `Movies watched by ${LETTERBOXD_USER} on Letterboxd`,
+    description: `Movies watched by ${LETTERBOXD_USER} on Letterboxd with ratings`,
     resources: ['catalog', 'meta'],
     types: ['movie'],
     idPrefixes: ['letterboxd:'],
@@ -31,7 +31,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Safe Puppeteer scraping with caching
+// Catalog handler with Puppeteer and star ratings
 builder.defineCatalogHandler(async () => {
     try {
         const now = Date.now();
@@ -55,11 +55,22 @@ builder.defineCatalogHandler(async () => {
                 const posterEl = film.querySelector('img');
                 const ratingEl = film.querySelector('.rating');
 
+                // Convert rating to stars
+                let ratingStars = 'No rating';
+                if (ratingEl) {
+                    const ratingValue = parseFloat(ratingEl.textContent.trim());
+                    if (!isNaN(ratingValue)) {
+                        const fullStars = '★'.repeat(Math.round(ratingValue));
+                        const emptyStars = '☆'.repeat(5 - Math.round(ratingValue));
+                        ratingStars = fullStars + emptyStars;
+                    }
+                }
+
                 return {
                     id: 'letterboxd:' + titleEl?.href.split('/film/')[1]?.replace(/\//g, ''),
                     title: titleEl?.textContent.trim() || 'Unknown',
                     poster: posterEl?.getAttribute('data-src') || posterEl?.src || '',
-                    description: ratingEl?.textContent.trim() || 'No rating'
+                    description: ratingStars
                 };
             });
         });
@@ -72,8 +83,7 @@ builder.defineCatalogHandler(async () => {
         return { metas: movies };
     } catch (err) {
         console.error('Error scraping Letterboxd:', err);
-        // Fallback: return empty catalog instead of crashing
-        return { metas: [] };
+        return { metas: [] }; // fallback to avoid HTTP 500
     }
 });
 
