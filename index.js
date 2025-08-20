@@ -38,15 +38,15 @@ async function scrapeLetterboxd() {
 
     const movies = [];
 
-    $('.film-detail').each((i, el) => {
-        const titleEl = $(el).find('a[href*="/film/"]');
+    // Limit to first 20 movies
+    $('.film-poster').slice(0, 20).each((i, el) => {
         const posterEl = $(el).find('img');
-        const ratingEl = $(el).find('.rating');
+        const title = posterEl.attr('alt') || 'Unknown';
+        const poster = posterEl.attr('src') || 'https://via.placeholder.com/300x450?text=No+Image';
 
-        const title = titleEl.text().trim() || 'Unknown';
-        const poster = posterEl.attr('data-src') || posterEl.attr('src') || 'https://via.placeholder.com/300x450?text=No+Image';
-
+        // Jake’s rating (1–5 stars) shown as ★☆☆☆☆
         let ratingStars = 'No rating';
+        const ratingEl = $(el).find('.rating');
         if (ratingEl.length) {
             const ratingValue = parseFloat(ratingEl.text().trim());
             if (!isNaN(ratingValue)) {
