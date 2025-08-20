@@ -1,13 +1,13 @@
-const { addonBuilder, serveHTTP } = require("stremio-addon-sdk")
-const fetch = require("node-fetch")
+const { addonBuilder } = require("stremio-addon-sdk")
+const fetch = require("node-fetch") // make sure this is v2
 const cheerio = require("cheerio")
 const express = require("express")
 
-// Hardcoded Letterboxd username
+console.log("Addon starting...") // log on startup
+
 const LETTERBOXD_USER = "jake84"
 const BASE_URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/`
 
-// Create Stremio addon manifest
 const manifest = {
     id: "org.jake84.letterboxd",
     version: "1.0.0",
@@ -18,24 +18,28 @@ const manifest = {
     idPrefixes: ["letterboxd:"],
 }
 
-// Create addon builder
 const builder = new addonBuilder(manifest)
 
-// Utility: scrape Letterboxd page
+// Safe scraping function
 async function scrapeLetterboxd() {
-    const res = await fetch(BASE_URL)
-    const body = await res.text()
-    const $ = cheerio.load(body)
-    const movies = []
+    try {
+        const res = await fetch(BASE_URL)
+        const body = await res.text()
+        const $ = cheerio.load(body)
+        const movies = []
 
-    $(".film-detail").each((i, el) => {
-        const title = $(el).find(".film-title").text().trim()
-        const rating = $(el).find(".rating").attr("data-rating") || null
-        const id = `letterboxd:${title.toLowerCase().replace(/ /g, "-")}`
-        if(title) movies.push({ id, title, rating })
-    })
+        $(".film-detail").each((i, el) => {
+            const title = $(el).find(".film-title").text().trim()
+            const rating = $(el).find(".rating").attr("data-rating") || null
+            const id = `letterboxd:${title.toLowerCase().replace(/ /g, "-")}`
+            if(title) movies.push({ id, title, rating })
+        })
 
-    return movies
+        return movies
+    } catch(err) {
+        console.error("Error scraping Letterboxd:", err)
+        return []
+    }
 }
 
 // Catalog handler
@@ -51,7 +55,7 @@ builder.defineCatalogHandler(async ({ type }) => {
     return { metas }
 })
 
-// Meta handler (detailed info)
+// Meta handler
 builder.defineMetaHandler(async ({ type, id }) => {
     const movies = await scrapeLetterboxd()
     const movie = movies.find(m => m.id === id)
@@ -64,9 +68,7 @@ builder.defineMetaHandler(async ({ type, id }) => {
     }
 })
 
-// ------------------------
-// EXPRESS SERVER (for Render)
-// ------------------------
+// Express server for Render
 const app = express()
 app.use("/", builder.getInterface())
 
