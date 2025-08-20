@@ -1,7 +1,6 @@
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk")
 const fetch = require("node-fetch") // v2
 const cheerio = require("cheerio")
-const http = require("http")
 
 console.log("Addon starting...")
 
@@ -27,6 +26,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest)
 
+// Scrape movies from Letterboxd
 async function scrapeLetterboxd() {
     try {
         const res = await fetch(BASE_URL)
@@ -48,7 +48,7 @@ async function scrapeLetterboxd() {
     }
 }
 
-// Stremio handlers
+// Catalog handler
 builder.defineCatalogHandler(async ({ type }) => {
     if (type !== "movie") return { metas: [] }
     const movies = await scrapeLetterboxd()
@@ -62,6 +62,7 @@ builder.defineCatalogHandler(async ({ type }) => {
     }
 })
 
+// Meta handler
 builder.defineMetaHandler(async ({ type, id }) => {
     const movies = await scrapeLetterboxd()
     const movie = movies.find(m => m.id === id)
@@ -74,20 +75,10 @@ builder.defineMetaHandler(async ({ type, id }) => {
     }
 })
 
+// Get the AddonInterface object
 const addonInterface = builder.getInterface()
+
+// Serve the addon on Render's port
 const PORT = parseInt(process.env.PORT || 3000)
-
-// Serve Stremio addon
 serveHTTP(addonInterface, { port: PORT })
-console.log(`Stremio addon listening on port ${PORT}`)
-
-// Optional test route on the same port
-http.createServer(async (req, res) => {
-    if (req.url === "/test") {
-        const movies = await scrapeLetterboxd()
-        res.writeHead(200, { "Content-Type": "application/json" })
-        res.end(JSON.stringify(movies, null, 2))
-    }
-}).listen(PORT, () => {
-    console.log(`Test route available at /test on same port ${PORT}`)
-})
+console.log(`Addon listening on port ${PORT}`)
