@@ -1,6 +1,6 @@
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk")
 const fetch = require("node-fetch") // v2
-const xml2js = require("xml2js") // to parse RSS feed
+const xml2js = require("xml2js")
 
 console.log("Addon starting...")
 
@@ -34,15 +34,25 @@ async function fetchRSS() {
         const parsed = await xml2js.parseStringPromise(xml)
         const items = parsed.rss.channel[0].item || []
 
+        if (!items.length) {
+            // fallback meta if no items found
+            return [{
+                id: "letterboxd:placeholder",
+                title: "No movies found",
+                description: "",
+                poster: "https://via.placeholder.com/200x300?text=No+Image"
+            }]
+        }
+
         return items.map(item => {
-            const titleRaw = item.title[0]
-            const title = titleRaw.replace(/ \(\d{4}\)$/, "") // remove year
+            const titleRaw = item.title[0] // e.g. "The Matrix (1999)"
+            const title = titleRaw.replace(/\(\d{4}\)$/, "").trim() // remove year
             const yearMatch = titleRaw.match(/\((\d{4})\)$/)
             const year = yearMatch ? parseInt(yearMatch[1]) : null
             const idSafe = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
             return {
                 id: `letterboxd:${idSafe}`,
-                title: title,
+                title: title || "Unknown Title",
                 description: year ? `Year: ${year}` : "",
                 poster: "https://via.placeholder.com/200x300?text=No+Image"
             }
@@ -62,7 +72,13 @@ async function fetchRSS() {
 builder.defineCatalogHandler(async ({ type }) => {
     if (type !== "movie") return { metas: [] }
     const movies = await fetchRSS()
-    return { metas: movies }
+    return { metas: movies.map(m => ({
+        id: m.id,
+        type: "movie",
+        name: m.title,
+        description: m.description,
+        poster: m.poster
+    })) }
 })
 
 // Meta handler
