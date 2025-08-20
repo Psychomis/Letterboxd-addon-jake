@@ -4,6 +4,12 @@ const puppeteer = require('puppeteer-core');
 const PORT = process.env.PORT || 3000;
 const LETTERBOXD_USER = 'jake84';
 const BASE_URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/by/rated-date/`;
+const CHROME_PATH = process.env.CHROME_PATH || '/usr/bin/chromium-browser';
+
+// Cache setup
+let cachedMovies = [];
+let lastScrape = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Stremio manifest
 const manifest = {
@@ -25,12 +31,19 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Catalog handler - scrape movies + Jake's rating
-builder.defineCatalogHandler(async ({ type, id }) => {
+// Catalog handler with caching
+builder.defineCatalogHandler(async () => {
+    const now = Date.now();
+
+    // Return cached data if valid
+    if (cachedMovies.length > 0 && now - lastScrape < CACHE_TTL) {
+        return { metas: cachedMovies };
+    }
+
     const browser = await puppeteer.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        executablePath: process.env.CHROME_PATH || '/usr/bin/chromium-browser'
+        executablePath: CHROME_PATH
     });
 
     const page = await browser.newPage();
@@ -52,10 +65,14 @@ builder.defineCatalogHandler(async ({ type, id }) => {
     });
 
     await browser.close();
+
+    cachedMovies = movies;
+    lastScrape = now;
+
     return { metas: movies };
 });
 
-// Meta handler - simple, just returns movie info
+// Meta handler - minimal
 builder.defineMetaHandler(async ({ type, id }) => {
     return { meta: { id, name: id.replace('letterboxd:', '').replace(/-/g,' '), description: '', poster: '' } };
 });
