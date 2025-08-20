@@ -1,10 +1,10 @@
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
-const puppeteer = require('puppeteer-core');
+const axios = require('axios');
+const cheerio = require('cheerio');
 
 const PORT = process.env.PORT || 3000;
 const LETTERBOXD_USER = 'jake84';
 const BASE_URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/by/rated-date/`;
-const CHROME_PATH = process.env.CHROME_PATH || '/usr/bin/chromium-browser';
 
 // === CACHE SETUP ===
 let cachedMovies = [];
@@ -33,77 +33,43 @@ const builder = new addonBuilder(manifest);
 
 // === HELPER FUNCTION: scrape movies ===
 async function scrapeLetterboxd() {
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        executablePath: CHROME_PATH
-    });
+    const res = await axios.get(BASE_URL);
+    const $ = cheerio.load(res.data);
 
-    const page = await browser.newPage();
-    await page.goto(BASE_URL, { waitUntil: 'networkidle2' });
+    const movies = [];
 
-    const movies = await page.evaluate(() => {
-        return Array.from(document.querySelectorAll('.film-detail')).map(film => {
-            const titleEl = film.querySelector('a[href*="/film/"]');
-            const posterEl = film.querySelector('img');
-            const ratingEl = film.querySelector('.rating');
+    $('.film-detail').each((i, el) => {
+        const titleEl = $(el).find('a[href*="/film/"]');
+        const posterEl = $(el).find('img');
+        const ratingEl = $(el).find('.rating');
 
-            const poster = posterEl?.getAttribute('data-src') || posterEl?.getAttribute('src') || 'https://via.placeholder.com/300x450?text=No+Image';
-            
-            let ratingStars = 'No rating';
-            if (ratingEl) {
-                const ratingValue = parseFloat(ratingEl.textContent.trim());
-                if (!isNaN(ratingValue)) {
-                    const fullStars = '★'.repeat(Math.round(ratingValue));
-                    const emptyStars = '☆'.repeat(5 - Math.round(ratingValue));
-                    ratingStars = fullStars + emptyStars;
-                }
+        const title = titleEl.text().trim() || 'Unknown';
+        const poster = posterEl.attr('data-src') || posterEl.attr('src') || 'https://via.placeholder.com/300x450?text=No+Image';
+
+        let ratingStars = 'No rating';
+        if (ratingEl.length) {
+            const ratingValue = parseFloat(ratingEl.text().trim());
+            if (!isNaN(ratingValue)) {
+                const fullStars = '★'.repeat(Math.round(ratingValue));
+                const emptyStars = '☆'.repeat(5 - Math.round(ratingValue));
+                ratingStars = fullStars + emptyStars;
             }
+        }
 
-            return {
-                id: 'letterboxd:' + (titleEl?.href.split('/film/')[1]?.replace(/\//g, '') || Date.now()),
-                title: titleEl?.textContent.trim() || 'Unknown',
-                poster: poster,
-                description: ratingStars
-            };
+        const id = 'letterboxd:' + title.replace(/\s+/g, '-').toLowerCase() + '-' + i;
+
+        movies.push({
+            id,
+            title,
+            poster,
+            description: ratingStars
         });
     });
 
-    await browser.close();
     return movies;
 }
 
 // === CATALOG HANDLER WITH CACHE ===
 builder.defineCatalogHandler(async () => {
     const now = Date.now();
-    if (cachedMovies.length > 0 && now - lastScrape < CACHE_TTL) {
-        return { metas: cachedMovies };
-    }
-
-    try {
-        const movies = await scrapeLetterboxd();
-        cachedMovies = movies;
-        lastScrape = now;
-        return { metas: movies };
-    } catch (err) {
-        console.error('Error scraping Letterboxd:', err);
-        // fallback: return cached movies or a placeholder
-        return {
-            metas: cachedMovies.length ? cachedMovies : [{
-                id: 'letterboxd:none',
-                title: 'No Movies Found',
-                poster: 'https://via.placeholder.com/300x450?text=No+Image',
-                description: 'Scraping failed'
-            }]
-        };
-    }
-});
-
-// === META HANDLER (minimal) ===
-builder.defineMetaHandler(async ({ id }) => {
-    return { meta: { id, name: id.replace('letterboxd:', '').replace(/-/g, ' '), poster: '', description: '' } };
-});
-
-// === START SERVER ===
-serveHTTP(builder.getInterface(), { port: PORT });
-console.log(`Stremio addon listening on port ${PORT}`);
+    if (cachedMovies.length && now - lastScrape < CACHE_TTL) {

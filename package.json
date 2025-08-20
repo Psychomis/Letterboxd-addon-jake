@@ -1,18 +1,14 @@
 {
   "name": "letterboxd-addon-jake",
   "version": "1.0.0",
-  "description": "Stremio addon showing movies watched by Jake84 on Letterboxd with ratings",
+  "description": "Letterboxd addon for Jake84 movies and ratings",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "puppeteer-core": "^24.0.0",
-    "stremio-addon-sdk": "^1.0.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "author": "Kristoffer Nielsen",
-  "license": "MIT"
+    "stremio-addon-sdk": "^0.5.8",
+    "axios": "^1.6.6",
+    "cheerio": "^1.0.0-rc.12"
+  }
 }
