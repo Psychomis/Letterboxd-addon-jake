@@ -9,7 +9,7 @@
   "author": "Kristoffer Nielsen",
   "license": "MIT",
   "dependencies": {
-    "stremio-addon-sdk": "^1.0.0",
-    "puppeteer": "^21.3.8"
+    "puppeteer-core": "^21.11.0",
+    "stremio-addon-sdk": "^1.0.0"
   }
 }

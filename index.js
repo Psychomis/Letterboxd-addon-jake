@@ -1,82 +1,76 @@
-const { addonBuilder, serveHTTP } = require("stremio-addon-sdk")
-const puppeteer = require("puppeteer")
+const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
+const puppeteer = require('puppeteer-core');
 
-console.log("Addon starting...")
+const PORT = process.env.PORT || 3000;
+const LETTERBOXD_USER = 'jake84';
+const BASE_URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/by/rated-date/`;
 
-const LETTERBOXD_USER = "jake84"
-const URL = `https://letterboxd.com/${LETTERBOXD_USER}/films/by/rated-date/`
-
+// Manifest for Stremio
 const manifest = {
-    id: "org.jake84.letterboxd",
-    version: "1.0.0",
+    id: 'org.jake84.letterboxd',
+    version: '1.0.0',
     name: `Letterboxd - ${LETTERBOXD_USER}`,
     description: `Movies watched by ${LETTERBOXD_USER} on Letterboxd`,
-    resources: ["catalog", "meta"],
-    types: ["movie"],
-    idPrefixes: ["letterboxd:"],
+    resources: ['catalog', 'meta'],
+    types: ['movie'],
+    idPrefixes: ['letterboxd:'],
     catalogs: [
         {
-            type: "movie",
-            id: "letterboxd-scraped",
+            type: 'movie',
+            id: 'letterboxd-rss',
             name: `Films of ${LETTERBOXD_USER}`
         }
     ]
-}
+};
 
-const builder = new addonBuilder(manifest)
+// Create the addon
+const builder = new addonBuilder(manifest);
 
-// Scrape Letterboxd page for movies
-async function fetchMovies() {
-    try {
-        const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] })
-        const page = await browser.newPage()
-        await page.goto(URL, { waitUntil: "networkidle2" })
+// Catalog endpoint
+builder.defineCatalogHandler(async ({ type, id }) => {
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        executablePath: process.env.CHROME_PATH || '/usr/bin/chromium-browser'
+    });
 
-        const movies = await page.evaluate(() => {
-            const list = []
-            document.querySelectorAll('.film-poster')?.forEach(el => {
-                const title = el.getAttribute('data-film-name')
-                const year = el.getAttribute('data-film-year')
-                const poster = el.querySelector('img')?.src || "https://via.placeholder.com/200x300?text=No+Image"
-                const idSafe = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
-                list.push({
-                    id: `letterboxd:${idSafe}`,
-                    title,
-                    description: year ? `Year: ${year}` : "",
-                    poster
-                })
-            })
-            return list
-        })
+    const page = await browser.newPage();
+    await page.goto(BASE_URL, { waitUntil: 'networkidle2' });
 
-        await browser.close()
-        return movies
-    } catch (err) {
-        console.error("Error scraping Letterboxd:", err)
-        return [{
-            id: "letterboxd:error",
-            title: "Error fetching list",
-            description: "",
-            poster: "https://via.placeholder.com/200x300?text=No+Image"
-        }]
-    }
-}
+    // Scrape movies
+    const movies = await page.evaluate(() => {
+        return Array.from(document.querySelectorAll('.film-detail')).map(film => {
+            const titleEl = film.querySelector('a[href*="/film/"]');
+            const posterEl = film.querySelector('img');
+            const watchedDateEl = film.querySelector('.td-numeric');
 
-// Catalog handler
-builder.defineCatalogHandler(async ({ type }) => {
-    if (type !== "movie") return { metas: [] }
-    const movies = await fetchMovies()
-    return { metas: movies }
-})
+            return {
+                id: 'letterboxd:' + titleEl?.href.split('/film/')[1]?.replace(/\//g, ''),
+                title: titleEl?.textContent.trim() || 'Unknown',
+                poster: posterEl?.getAttribute('data-src') || posterEl?.src || '',
+                description: watchedDateEl?.textContent.trim() || ''
+            };
+        });
+    });
 
-// Meta handler
+    await browser.close();
+
+    return { metas: movies };
+});
+
+// Meta endpoint
 builder.defineMetaHandler(async ({ type, id }) => {
-    const movies = await fetchMovies()
-    return movies.find(m => m.id === id) || null
-})
+    // For simplicity, return the same info as catalog
+    return {
+        meta: {
+            id,
+            name: id.replace('letterboxd:', '').replace(/-/g, ' '),
+            description: '',
+            poster: ''
+        }
+    };
+});
 
-// Serve on Render
-const addonInterface = builder.getInterface()
-const PORT = parseInt(process.env.PORT || 3000)
-serveHTTP(addonInterface, { port: PORT })
-console.log(`Addon listening on port ${PORT}`)
+// Serve the addon
+serveHTTP(builder.getInterface(), { port: PORT });
+console.log(`Stremio addon listening on port ${PORT}`);
