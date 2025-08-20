@@ -53,9 +53,12 @@ builder.defineCatalogHandler(async () => {
             return Array.from(document.querySelectorAll('.film-detail')).map(film => {
                 const titleEl = film.querySelector('a[href*="/film/"]');
                 const posterEl = film.querySelector('img');
-                const ratingEl = film.querySelector('.rating');
 
-                // Convert rating to stars
+                // Poster fallback
+                const poster = posterEl?.getAttribute('data-src') || posterEl?.getAttribute('src') || '';
+
+                // Jake's rating as stars
+                const ratingEl = film.querySelector('.rating');
                 let ratingStars = 'No rating';
                 if (ratingEl) {
                     const ratingValue = parseFloat(ratingEl.textContent.trim());
@@ -67,9 +70,9 @@ builder.defineCatalogHandler(async () => {
                 }
 
                 return {
-                    id: 'letterboxd:' + titleEl?.href.split('/film/')[1]?.replace(/\//g, ''),
+                    id: 'letterboxd:' + (titleEl?.href.split('/film/')[1]?.replace(/\//g, '') || Date.now()),
                     title: titleEl?.textContent.trim() || 'Unknown',
-                    poster: posterEl?.getAttribute('data-src') || posterEl?.src || '',
+                    poster: poster,
                     description: ratingStars
                 };
             });
