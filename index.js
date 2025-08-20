@@ -1,7 +1,6 @@
-const { addonBuilder } = require("stremio-addon-sdk")
+const { addonBuilder, serveHTTP } = require("stremio-addon-sdk")
 const fetch = require("node-fetch") // must be v2
 const cheerio = require("cheerio")
-const express = require("express")
 
 console.log("Addon starting...")
 
@@ -77,29 +76,10 @@ builder.defineMetaHandler(async ({ type, id }) => {
     }
 })
 
-// Express server
-const app = express()
-
-// Serve manifest.json for Stremio
-app.get("/manifest.json", (req, res) => res.json(manifest))
-
-// Test route to see scraped movies in browser
-app.get("/test", async (req, res) => {
-    try {
-        const movies = await scrapeLetterboxd()
-        res.json(movies)
-    } catch (err) {
-        console.error("Error in /test route:", err)
-        res.status(500).send("Error fetching movies")
-    }
-})
-
-// Correctly mount Stremio addon router
-const addonRouter = builder.getInterface()
-app.use("/", addonRouter)
-
+// Serve the addon via SDK
 const port = process.env.PORT || 3000
-app.listen(port, () => console.log(`Addon listening on port ${port}`))
+serveHTTP(builder, { port })
+console.log(`Addon listening on port ${port}`)
 
 process.on("uncaughtException", err => console.error("Uncaught exception:", err))
 process.on("unhandledRejection", err => console.error("Unhandled rejection:", err))
