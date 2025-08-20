@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 \# Jake84 Letterboxd Stremio Addon
 
 
@@ -32,3 +33,7 @@
 
 
 
+=======
+# Letterboxd-addon-jake
+Jake Letterboxd addon
+>>>>>>> ad3a2d811c8da54c4bc78abab2b9e10bbe1829eb
